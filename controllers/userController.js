@@ -2,6 +2,9 @@ const asyncHandler = require('express-async-handler')
 const Users = require('../models/userModel')
 // used to hash the password
 const bcrypt = require('bcrypt')
+// jwt is used to check if the credentials are correct and to give a access
+// token to the user
+const jwt = require('jsonwebtoken')
 
 
 
@@ -14,7 +17,10 @@ const bcrypt = require('bcrypt')
 // asyncHandler will manage it
 const registerUsers = asyncHandler(async (req,res) => {
 
+    console.log("hello");
+    console.log("hello");
     const{username,email,password} = req.body;
+    console.log(req.body);
     if(!username || !email || !password){
         res.status(400);
         throw new Error("All fields are mandatory");
@@ -43,13 +49,8 @@ const registerUsers = asyncHandler(async (req,res) => {
         })
     }
     else{
-        res.status(400);
-        throw new Error("User data is not valid");
+        res.status(400).json({"error": new Error("User data is not valid")});
     }
-
-    res.json({
-        message : "register the user"
-    })
 });
 
 // @description Login the user
@@ -59,9 +60,34 @@ const registerUsers = asyncHandler(async (req,res) => {
 // we will not need to write try catch blocks manually, whenever there is need
 // asyncHandler will manage it
 const loginUsers = asyncHandler(async (req,res) => {
-    res.json({
-        message : "login user"
-    })
+    const {email,password} = req.body;
+    if(!email || !password){
+        res.status(400);
+        throw new Error('All fields are mandatory')
+    }
+
+    // use to find if user is in database
+    const user = await Users.findOne({email});
+
+    // compare password with hashpassword
+    if(user && (await bcrypt.compare(password,user.password))){
+        const accessToken = jwt.sign({
+            user:{
+                userName : user.userName,
+                email : email.email,
+                id : user.id
+            },
+        },process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn : "15m"
+        }
+        );
+        res.status(200).json({accessToken});
+    }
+    else{
+        res.status(401);
+        throw new Error("Email or password is not valid");
+    }
 });
 
 // @description  current user
@@ -71,9 +97,7 @@ const loginUsers = asyncHandler(async (req,res) => {
 // we will not need to write try catch blocks manually, whenever there is need
 // asyncHandler will manage it
 const currentUsers = asyncHandler(async (req,res) => {
-    res.json({
-        message : "current user information"
-    })
+    res.json(req.user);
 });
 
 module.exports = {registerUsers , loginUsers, currentUsers};
